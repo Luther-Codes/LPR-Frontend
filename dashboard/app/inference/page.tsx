@@ -368,9 +368,9 @@ export default function LPRDashboard() {
     return (
         <div className="bg-background text-white">
             {/* Header / Navbar */}
-            <div className='w-full py-4 backdrop-blur-sm top-0 z-10 sticky flex justify-center items-center'>
-                <Navbar></Navbar>
-            </div>
+            <header className="lg:px-16 py-4 w-full backdrop-blur-sm top-0 z-10 sticky">
+                    <Navbar />
+            </header>
             {/* Main Dashboard Content */}
             <div className="w-full p-4 flex flex-col sm:px-6 lg:px-8 py-8">
 
