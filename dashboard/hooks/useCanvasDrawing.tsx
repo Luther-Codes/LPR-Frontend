@@ -15,7 +15,7 @@ import type { PlateResult, BoundingBox } from "@/types/lpr";
  */
 export function useCanvasDrawing() {
   const drawMultiPlateResults = useCallback(
-    (canvas: HTMLCanvasElement | null, imageEl: HTMLImageElement | null, plates: PlateResult[] | null) => {
+    (canvas: HTMLCanvasElement | null, imageEl: HTMLImageElement | HTMLVideoElement | null, plates: PlateResult[] | null) => {
       if (!canvas || !imageEl) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
@@ -32,8 +32,17 @@ export function useCanvasDrawing() {
 
       // We assume backend coordinates are in image-original pixel space.
       // To scale, we need original image natural size
-      const origW = imageEl.naturalWidth;
-      const origH = imageEl.naturalHeight;
+      let origW = 0;
+      let origH = 0;
+
+      if (imageEl instanceof HTMLImageElement) {
+        origW = imageEl.naturalWidth;
+        origH = imageEl.naturalHeight;
+      } else if (imageEl instanceof HTMLVideoElement) {
+        origW = imageEl.videoWidth;
+        origH = imageEl.videoHeight;
+      }
+
       if (!origW || !origH) return;
 
       const scaleX = displayW / origW;

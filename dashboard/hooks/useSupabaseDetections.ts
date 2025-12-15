@@ -3,19 +3,24 @@
 
 import { useState, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/components/context/auth-context";
 import type { SupabaseDetection } from "@/types/lpr"; // optional types
 
 export function useSupabaseDetections() {
   const [recentDetections, setRecentDetections] = useState<any[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
   const fetchDetectionData = useCallback(async () => {
+    if (!user) return;
+    
     setLoading(true);
     try {
       const { data: recent } = await supabase
         .from("detections")
         .select("*")
+        .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(10);
 
@@ -23,13 +28,14 @@ export function useSupabaseDetections() {
 
       const { count } = await supabase
         .from("detections")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id);
 
       setTotalCount(count ?? 0);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const saveDetection = useCallback(
     async (det: {
@@ -38,7 +44,12 @@ export function useSupabaseDetections() {
       status: string;
       time_ms: number;
     }) => {
-      const { data, error } = await supabase.from("detections").insert(det);
+      if (!user) return null;
+
+      const { data, error } = await supabase.from("detections").insert({
+        ...det,
+        user_id: user.id,
+      });
 
       if (error) {
         console.error("Supabase insert error:", {
@@ -50,7 +61,7 @@ export function useSupabaseDetections() {
       }
       return data;
     },
-    []
+    [user]
   );
 
   return {

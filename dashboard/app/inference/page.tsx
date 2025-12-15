@@ -38,13 +38,20 @@ export default function LPRDashboard() {
 
   // hooks
   const { imageFile, imageURL, handleFileChange, clear: clearImage } = useImageUpload();
-  const { loading: lprLoading, error: lprError, response, recognize } = useLPRBackend();
+  const { loading: lprLoading, error: lprError, response, recognize, setResponse } = useLPRBackend();
   const { drawMultiPlateResults } = useCanvasDrawing();
   const { recentDetections, totalCount, fetchDetectionData } = useSupabaseDetections();
 
   // refs
   const uploadedImageRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear response when switching tabs to avoid "ghost" boxes
+  useEffect(() => {
+    setResponse(null);
+  }, [activeTab, setResponse]);
 
   // UI-level selection of which plate to show as "primary"
   const [selectedPlateIndex, setSelectedPlateIndex] = useState<number>(0);
@@ -57,14 +64,19 @@ export default function LPRDashboard() {
 
   // draw when response changes or image size changes
   useEffect(() => {
-    if (!response || !uploadedImageRef.current) return;
-    drawMultiPlateResults(canvasRef.current, uploadedImageRef.current, response.plates);
-  }, [response, drawMultiPlateResults, imageURL]);
+    if (!response) return;
+
+    if (activeTab === "upload" && uploadedImageRef.current && canvasRef.current) {
+      drawMultiPlateResults(canvasRef.current, uploadedImageRef.current, response.plates);
+    } else if (activeTab === "live" && videoRef.current && canvasRef.current) {
+      drawMultiPlateResults(canvasRef.current, videoRef.current, response.plates);
+    }
+  }, [response, drawMultiPlateResults, imageURL, activeTab]);
 
   const dynamicStats = useMemo(() => {
     const totalRecent = recentDetections.length;
-    const blockedCount = recentDetections.filter((d) => d.status !== "allowed").length;
-    const successCount = recentDetections.filter((d) => d.status === "allowed").length;
+    const blockedCount = recentDetections.filter((d) => d.status !== "success").length;
+    const successCount = recentDetections.filter((d) => d.status === "success").length;
     const accuracy = totalRecent > 0 ? ((successCount / totalRecent) * 100).toFixed(1) : "0.0";
     return { totalRecent, blockedCount, accuracy };
   }, [recentDetections]);
@@ -93,15 +105,15 @@ export default function LPRDashboard() {
 
     // Save all detected plates to Supabase
     for (const plate of res.plates) {
-        await saveDetection({
+      await saveDetection({
         plate_number: plate.plate_number,
-        confidence: plate.plate_confidence,
+        confidence: (plate.plate_confidence ?? 0) * 100,
         status:
-            !plate.plate_number || plate.plate_number === "Plate Not Found"
+          !plate.plate_number || plate.plate_number === "Plate Not Found"
             ? "error"
             : "success",
-        time_ms: res.time_taken_ms?.toFixed(2) ?? 0,
-        });
+        time_ms: res.time_taken_ms ? Number(res.time_taken_ms.toFixed(2)) : 0,
+      });
     }
 
     fetchDetectionData();
@@ -111,6 +123,61 @@ export default function LPRDashboard() {
     clearImage();
     setSelectedPlateIndex(0);
   };
+
+  const captureAndRecognize = async () => {
+    if (!videoRef.current) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], "live_frame.jpg", { type: "image/jpeg" });
+      // Call recognize directly (does NOT save to Supabase)
+      await recognize(file);
+    }, "image/jpeg");
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      // Recognize every 500ms
+      intervalRef.current = setInterval(captureAndRecognize, 500);
+    } catch (err) {
+      console.error("Camera error:", err);
+    }
+  };
+
+  const stopCamera = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach((track) => track.stop());
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "live") {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    return () => {
+      stopCamera();
+    };
+  }, [activeTab]);
 
   return (
     <div className="bg-background text-white min-h-screen">
@@ -161,9 +228,8 @@ export default function LPRDashboard() {
               <div className="flex border-b border-slate-700">
                 <button
                   onClick={() => setActiveTab("live")}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                    activeTab === "live" ? "bg-slate-700/50 text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
-                  }`}
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === "live" ? "bg-slate-700/50 text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
+                    }`}
                 >
                   <Camera className="w-4 h-4 inline mr-2" />
                   Live Camera (Mock)
@@ -171,9 +237,8 @@ export default function LPRDashboard() {
 
                 <button
                   onClick={() => setActiveTab("upload")}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
-                    activeTab === "upload" ? "bg-slate-700/50 text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
-                  }`}
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === "upload" ? "bg-slate-700/50 text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
+                    }`}
                 >
                   <Upload className="w-4 h-4 inline mr-2" />
                   Upload Image
@@ -182,7 +247,13 @@ export default function LPRDashboard() {
 
               <div className="p-6">
                 {activeTab === "live" ? (
-                  <p className="text-slate-500 text-center py-20">Fitur Live Camera memerlukan integrasi backend real-time dan saat ini masih mock.</p>
+                  <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+                    <video ref={videoRef} className="w-full h-full object-contain" muted playsInline />
+                    <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
+                    <div className="absolute top-4 right-4 bg-red-500 text-white px-2 py-1 text-xs rounded animate-pulse">
+                      LIVE
+                    </div>
+                  </div>
                 ) : (
                   <div>
                     {!imageURL ? (
@@ -272,7 +343,7 @@ export default function LPRDashboard() {
                                           <p className="text-3xl font-extrabold tracking-widest">{p.plate_number}</p>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                           <div>
                                             <p className="text-slate-400 text-sm">Time Taken</p>
                                             <p className="text-white text-xl font-bold mt-1">{response.time_taken_ms?.toFixed(2) ?? "N/A"} ms</p>
@@ -280,6 +351,12 @@ export default function LPRDashboard() {
                                           <div>
                                             <p className="text-slate-400 text-sm">Chars Detected</p>
                                             <p className="text-white text-xl font-bold mt-1">{p.char_boxes?.length ?? 0}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-slate-400 text-sm">Confidence</p>
+                                            <p className="text-white text-xl font-bold mt-1">
+                                              {p.plate_confidence ? Math.round(p.plate_confidence * 100) : "N/A"}%
+                                            </p>
                                           </div>
                                         </div>
                                       </div>
@@ -316,7 +393,7 @@ export default function LPRDashboard() {
                     <div key={d.id} className="bg-slate-900/50 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-white font-mono font-bold text-lg">{d.plate_number}</span>
-                        {d.status === "allowed" ? <CheckCircle className="w-5 h-5 text-green-400" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
+                        {d.status === "success" ? <CheckCircle className="w-5 h-5 text-green-400" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-400">{formatTime(d.created_at)}</span>
