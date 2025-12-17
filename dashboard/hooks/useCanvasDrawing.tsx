@@ -27,86 +27,72 @@ export function useCanvasDrawing() {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // ==============================
-      // 1️⃣ Get DISPLAY size
-      // ==============================
-      const rect = imageEl.getBoundingClientRect();
-      const displayW = rect.width;
-      const displayH = rect.height;
+      const container = canvas.parentElement;
+      if (!container) return;
 
-      if (!displayW || !displayH) return;
+      // Container size (aspect-video box)
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
 
-      // Canvas must match what user sees
-      canvas.width = displayW;
-      canvas.height = displayH;
+      canvas.width = cw;
+      canvas.height = ch;
+      ctx.clearRect(0, 0, cw, ch);
 
-      // ==============================
-      // 2️⃣ Get SOURCE size (model space)
-      // ==============================
-      let sourceW = 0;
-      let sourceH = 0;
+      // Source size
+      const srcW =
+        imageEl instanceof HTMLImageElement
+          ? imageEl.naturalWidth
+          : imageEl.videoWidth;
 
-      if (imageEl instanceof HTMLImageElement) {
-        sourceW = imageEl.naturalWidth;
-        sourceH = imageEl.naturalHeight;
-      } else {
-        sourceW = imageEl.videoWidth;
-        sourceH = imageEl.videoHeight;
-      }
+      const srcH =
+        imageEl instanceof HTMLImageElement
+          ? imageEl.naturalHeight
+          : imageEl.videoHeight;
 
-      if (!sourceW || !sourceH) return;
+      if (!srcW || !srcH) return;
 
-      // ==============================
-      // 3️⃣ Scaling factors
-      // ==============================
-      const scaleX = displayW / sourceW;
-      const scaleY = displayH / sourceH;
+      // Scale preserving aspect ratio (object-contain)
+      const scale = Math.min(cw / srcW, ch / srcH);
 
-      // Clear previous frame
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const drawW = srcW * scale;
+      const drawH = srcH * scale;
 
-      // ==============================
-      // 4️⃣ Draw plates
-      // ==============================
-      plates.forEach((plate, pIndex) => {
+      // Letterbox offset
+      const offsetX = (cw - drawW) / 2;
+      const offsetY = (ch - drawH) / 2;
+
+      plates.forEach((plate, idx) => {
         const pb = plate.plate_box;
         if (!pb) return;
 
-        // Plate box (ABSOLUTE → SCALED)
-        const x1 = pb.x_min * scaleX;
-        const y1 = pb.y_min * scaleY;
-        const w = (pb.x_max - pb.x_min) * scaleX;
-        const h = (pb.y_max - pb.y_min) * scaleY;
+        const x = offsetX + pb.x_min * scale;
+        const y = offsetY + pb.y_min * scale;
+        const w = (pb.x_max - pb.x_min) * scale;
+        const h = (pb.y_max - pb.y_min) * scale;
 
-        // Plate rectangle
+        // Plate box
         ctx.strokeStyle = "#00FF88";
         ctx.lineWidth = 3;
-        ctx.strokeRect(x1, y1, w, h);
+        ctx.strokeRect(x, y, w, h);
 
         // Label
         ctx.fillStyle = "#00FF88";
         ctx.font = "14px Arial";
         ctx.fillText(
-          `${pIndex + 1}: ${plate.plate_number ?? ""}`,
-          x1 + 4,
-          Math.max(14, y1 - 6)
+          `${idx + 1}: ${plate.plate_number ?? ""}`,
+          x,
+          y - 6
         );
 
-        // ==============================
-        // 5️⃣ Draw character boxes
-        // ==============================
+        // Characters
         ctx.strokeStyle = "#FF66CC";
         ctx.lineWidth = 1.5;
 
         plate.char_boxes?.forEach((cb) => {
-          const cx =
-            (pb.x_min + cb.x_min) * scaleX;
-          const cy =
-            (pb.y_min + cb.y_min) * scaleY;
-          const cw =
-            (cb.x_max - cb.x_min) * scaleX;
-          const ch =
-            (cb.y_max - cb.y_min) * scaleY;
+          const cx = offsetX + (pb.x_min + cb.x_min) * scale;
+          const cy = offsetY + (pb.y_min + cb.y_min) * scale;
+          const cw = (cb.x_max - cb.x_min) * scale;
+          const ch = (cb.y_max - cb.y_min) * scale;
 
           ctx.strokeRect(cx, cy, cw, ch);
         });

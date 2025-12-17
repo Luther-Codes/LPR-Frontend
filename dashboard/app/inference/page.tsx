@@ -121,12 +121,33 @@ export default function LPRDashboard() {
 
 
   const dynamicStats = useMemo(() => {
-    const totalRecent = recentDetections.length;
-    const blockedCount = recentDetections.filter((d) => d.status !== "success").length;
-    const successCount = recentDetections.filter((d) => d.status === "success").length;
-    const accuracy = totalRecent > 0 ? ((successCount / totalRecent) * 100).toFixed(1) : "0.0";
-    return { totalRecent, blockedCount, accuracy };
+    if (recentDetections.length === 0) {
+      return {
+        avgConfidence: 0,
+        platesDetected: 0,
+      };
+    }
+
+    const successful = recentDetections.filter(
+      (d) => d.status === "success"
+    );
+
+    const platesDetected = recentDetections.filter((d) => d.status === "success").length;
+
+    const avgConfidence =
+      successful.length > 0
+        ? successful.reduce(
+            (sum, d) => sum + (Number(d.confidence) || 0),
+            0
+          ) / successful.length
+        : 0;
+
+    return {
+      avgConfidence: Number(avgConfidence.toFixed(1)),
+      platesDetected,
+    };
   }, [recentDetections]);
+
 
   // map backend response to UI state for saving or display
   // const mapPlateToDetectedState = (plate: PlateResult): DetectedPlateState => {
@@ -151,7 +172,7 @@ export default function LPRDashboard() {
 
     const res = await recognize(imageFile);
     if (!res || !res.plates) {
-      throw new Error("No plates detected");
+      return
     };
     setResponse(res);
     setHasRunRecognition(true);
@@ -171,7 +192,7 @@ export default function LPRDashboard() {
       });
     }
 
-    fetchDetectionData();
+    await fetchDetectionData();
   };
 
   const handleResetUpload = () => {
@@ -257,35 +278,25 @@ export default function LPRDashboard() {
       <div className="w-full p-4 flex flex-col sm:px-6 lg:px-8 py-8">
         {/* Stats */}
         <div className="p-4 backdrop-blur-sm border rounded-xl mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div className="flex items-center space-x-4">
-              <Car className="w-10 h-10 text-blue-400 flex-shrink-0" />
-              <div>
-                <p className="text-slate-400 text-sm">Total Scanned</p>
-                <p className="text-2xl font-bold text-white mt-1">{mounted ? totalCount.toLocaleString() : "0"}</p>
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4">
+            <div className="flex items-center justify-center space-x-4">
+                <CheckCircle className="w-10 h-10 flex-shrink-0 text-foreground" />
+                <div>
+                  <p className="text-foreground text-sm">Avg Confidence</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
+                    {mounted ? dynamicStats.avgConfidence : 0}%
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Clock className="w-10 h-10 text-purple-400 flex-shrink-0" />
-              <div>
-                <p className="text-slate-400 text-sm">Recent Scans</p>
-                <p className="text-2xl font-bold text-white mt-1">{mounted ? dynamicStats.totalRecent : "0"}</p>
+              <div className="flex items-center justify-center space-x-4">
+                <Car className="w-10 h-10  flex-shrink-0 text-foreground"  />
+                <div>
+                  <p className="text-foreground text-sm">Plates Detected</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">
+                    {mounted ? dynamicStats.platesDetected : 0}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <CheckCircle className="w-10 h-10 text-green-400 flex-shrink-0" />
-              <div>
-                <p className="text-slate-400 text-sm">Recent Accuracy</p>
-                <p className="text-2xl font-bold text-white mt-1">{mounted ? dynamicStats.accuracy : "0.0"}%</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <XCircle className="w-10 h-10 text-red-400 flex-shrink-0" />
-              <div>
-                <p className="text-slate-400 text-sm">Total Failed</p>
-                <p className="text-2xl font-bold text-white mt-1">{mounted ? dynamicStats.blockedCount : "0"}</p>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -317,7 +328,7 @@ export default function LPRDashboard() {
               <div className="p-6">
                 {activeTab === "live" ? (
                   <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-slate-700 aspect-video p-2">
-                    <video ref={videoRef} className="w-full h-full object-cover" muted playsInline autoPlay/>
+                    <video ref={videoRef} className="w-full h-full object-contain" muted playsInline autoPlay/>
                     <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                     <div className="absolute top-4 right-4 bg-red-500 text-white px-2 py-1 text-xs rounded animate-pulse">
                       LIVE

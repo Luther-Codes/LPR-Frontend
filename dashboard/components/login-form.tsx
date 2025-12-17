@@ -28,38 +28,43 @@ export function LoginForm({
     const google = "/google (1).png";
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const supabase = createClient();
-    setIsLoading(true);
-    setError(null);
+  e.preventDefault();
+  const supabase = createClient();
+  setIsLoading(true);
+  setError(null);
 
-  const handleGoogleLogin = async () => {
-    const supabase = createClient();
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    if (error) setError(error.message);
-  };
+    if (error) throw error;
+    router.push("/");
+  } catch (error: unknown) {
+    setError(error instanceof Error ? error.message : "An error occurred");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/");
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+ const handleGoogleLogin = async () => {
+  const supabase = createClient();
+  setIsLoading(true);
+  setError(null);
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    },
+  });
+
+  if (error) setError(error.message);
+  setIsLoading(false);
+};
+
 
   return (
     <div className={cn("w-svw h-svh flex justify-center items-center", className)} {...props}>
@@ -103,10 +108,10 @@ export function LoginForm({
                 />
               </div>
               {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full bg-foreground text-background" disabled={isLoading}>
+              <Button type="submit" onClick = {handleLogin} className="w-full bg-foreground text-background" disabled={isLoading}>
                 {isLoading ? "Logging in..." : "Login"}
               </Button>
-            <Button type="submit" className="w-full bg-foreground text-background">
+            <Button type="button" className="w-full bg-foreground text-background" onClick = {handleGoogleLogin}>
               <Image src = {google} alt = "Logo" height={20} width={20}  /> Sign in with google
             </Button>
             </div>
