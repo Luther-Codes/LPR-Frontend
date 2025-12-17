@@ -12,12 +12,19 @@ import {
   AlertCircle,
   Trash2,
 } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import Navbar from "@/components/navbar";
-
+import DotAnimation from "@/components/dot-animation"
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { useLPRBackend } from "@/hooks/useLPRBackend";
 import { useCanvasDrawing } from "@/hooks/useCanvasDrawing";
 import { useSupabaseDetections } from "@/hooks/useSupabaseDetections";
+import { Button } from "@/components/ui/button";
 
 import type { DetectedPlateState, PlateResult } from "@/types/lpr";
 
@@ -47,14 +54,25 @@ export default function LPRDashboard() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // Clear response when switching tabs to avoid "ghost" boxes
   useEffect(() => {
     setResponse(null);
+    setHasRunRecognition(false);
   }, [activeTab, setResponse]);
+
+  useEffect(() => {
+  // new image = old predictions invalid
+  setResponse(null);
+  setHasRunRecognition(false);
+  setSelectedPlateIndex(0);
+  }, [imageFile]);
 
   // UI-level selection of which plate to show as "primary"
   const [selectedPlateIndex, setSelectedPlateIndex] = useState<number>(0);
+  const [hasRunRecognition, setHasRunRecognition] = useState(false);
+
 
   // When mounted (hydration) — for SSR-safe counts
   useEffect(() => {
@@ -98,10 +116,18 @@ export default function LPRDashboard() {
   // handle upload trigger
   const handleRunRecognition = async () => {
     if (!imageFile) return;
-    const res = await recognize(imageFile);
-    if (!res || !res.plates) return;
-
+    setHasRunRecognition(false);
+    setResponse(null);
     setSelectedPlateIndex(0);
+
+    const res = await recognize(imageFile);
+    if (!res || !res.plates) {
+      throw new Error("No plates detected");
+    };
+    setResponse(res);
+    setHasRunRecognition(true);
+    setSelectedPlateIndex(0);
+
 
     // Save all detected plates to Supabase
     for (const plate of res.plates) {
@@ -144,10 +170,12 @@ export default function LPRDashboard() {
 
   const startCamera = async () => {
     try {
+      if (streamRef.current) return;
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        await videoRef.current.play();
       }
       // Recognize every 500ms
       intervalRef.current = setInterval(captureAndRecognize, 500);
@@ -161,9 +189,12 @@ export default function LPRDashboard() {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
+    if (streamRef.current) {
+    streamRef.current.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    }
+
     if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
   };
@@ -184,7 +215,6 @@ export default function LPRDashboard() {
       <header className="lg:px-16 py-4 w-full backdrop-blur-sm top-0 z-10 sticky">
         <Navbar />
       </header>
-
       <div className="w-full p-4 flex flex-col sm:px-6 lg:px-8 py-8">
         {/* Stats */}
         <div className="p-4 backdrop-blur-sm border rounded-xl mb-6">
@@ -224,11 +254,11 @@ export default function LPRDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* left */}
           <div className="lg:col-span-2">
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden">
-              <div className="flex border-b border-slate-700">
+            <div className="bg-background backdrop-blur-sm border border-gray-700 rounded-xl overflow-hidden">
+              <div className="flex border-b border-gray-500">
                 <button
                   onClick={() => setActiveTab("live")}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === "live" ? "bg-slate-700/50 text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === "live" ? "bg-background text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
                     }`}
                 >
                   <Camera className="w-4 h-4 inline mr-2" />
@@ -237,7 +267,7 @@ export default function LPRDashboard() {
 
                 <button
                   onClick={() => setActiveTab("upload")}
-                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === "upload" ? "bg-slate-700/50 text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
+                  className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${activeTab === "upload" ? "bg-background text-white border-b-2 border-blue-500" : "text-slate-400 hover:text-white hover:bg-slate-700/30"
                     }`}
                 >
                   <Upload className="w-4 h-4 inline mr-2" />
@@ -247,7 +277,7 @@ export default function LPRDashboard() {
 
               <div className="p-6">
                 {activeTab === "live" ? (
-                  <div className="relative aspect-video bg-slate-900 rounded-lg overflow-hidden border border-slate-700">
+                  <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden border border-slate-700">
                     <video ref={videoRef} className="w-full h-full object-contain" muted playsInline />
                     <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
                     <div className="absolute top-4 right-4 bg-red-500 text-white px-2 py-1 text-xs rounded animate-pulse">
@@ -257,7 +287,7 @@ export default function LPRDashboard() {
                 ) : (
                   <div>
                     {!imageURL ? (
-                      <label className="aspect-video bg-slate-900 rounded-lg flex items-center justify-center border-2 border-dashed border-slate-600 hover:border-blue-500 transition-colors cursor-pointer">
+                      <label className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-600 hover:border-blue-500 transition-colors cursor-pointer">
                         <input type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
                         <div className="text-center">
                           <Upload className="w-16 h-16 text-slate-600 mx-auto mb-4" />
@@ -303,12 +333,12 @@ export default function LPRDashboard() {
                         </div>
 
                         {/* detection results panel: show list of plates and selected plate details */}
-                        <div className="bg-slate-900 rounded-lg p-4 border border-slate-700/50">
+                        <div className="bg-gray-900 rounded-lg p-4 border border-gray-600">
                           {lprError && <div className="text-red-400">{lprError}</div>}
 
-                          {!response && !lprLoading && <p className="text-slate-400">No detection yet. Upload and run recognition.</p>}
+                          {!hasRunRecognition && !lprLoading && <p className="text-slate-400">No detection yet. Upload and run recognition.</p>}
 
-                          {response && response.plates.length === 0 && <p className="text-orange-400">No plates found.</p>}
+                          {hasRunRecognition && response && response.plates.length === 0 && <p className="text-orange-400">No plates found.</p>}
 
                           {response && response.plates.length > 0 && (
                             <div className="space-y-4">
@@ -377,33 +407,59 @@ export default function LPRDashboard() {
 
           {/* right */}
           <div className="lg:col-span-1">
-            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-white">Recent Detections</h2>
-                <button onClick={fetchDetectionData} className="text-blue-400 hover:text-blue-300 text-sm">
+            <Card className="bg-background border-2 border-gray-900 backdrop-blur-sm ">
+              {/* Header */}
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                <CardTitle className="text-xl font-bold text-white">
+                  Recent Detections
+                </CardTitle>
+                <Button
+                  onClick={fetchDetectionData}
+                  variant="ghost"
+                  className="text-sm text-blue-500"
+                >
                   Refresh
-                </button>
-              </div>
+                </Button>
+              </CardHeader>
 
-              <div className="space-y-4 max-h-[600px] overflow-y-auto">
+              {/* Scrollable content */}
+              <CardContent className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
                 {recentDetections.length === 0 ? (
-                  <p className="text-slate-500 text-center py-4">No recent detections found.</p>
+                  <p className="text-slate-500 text-center py-4">
+                    No recent detections found.
+                  </p>
                 ) : (
                   recentDetections.map((d: any) => (
-                    <div key={d.id} className="bg-slate-900/50 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-colors">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white font-mono font-bold text-lg">{d.plate_number}</span>
-                        {d.status === "success" ? <CheckCircle className="w-5 h-5 text-green-400" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-400">{formatTime(d.created_at)}</span>
-                        <span className="text-blue-400">{Math.round(d.confidence)}% confidence</span>
-                      </div>
-                    </div>
+                    <Card
+                      key={d.id}
+                      className="bg-slate-900/50 border-slate-700 hover:border-slate-600 transition-colors"
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-white font-mono font-bold text-lg">
+                            {d.plate_number}
+                          </span>
+                          {d.status === "success" ? (
+                            <CheckCircle className="w-5 h-5 text-green-400" />
+                          ) : (
+                            <AlertCircle className="w-5 h-5 text-red-400" />
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-400">
+                            {formatTime(d.created_at)}
+                          </span>
+                          <span className="text-blue-400">
+                            {Math.round(d.confidence)}% confidence
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
                   ))
                 )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

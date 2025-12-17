@@ -93,9 +93,10 @@ export default function Navbar() {
           </SheetTrigger>
 
           <SheetContent side="right" className="w-64 p-4">
-            <SheetHeader>
-              <SheetTitle>
-                Menu
+            <SheetHeader className="">
+              <SheetTitle className = "flex justify-between pt-5">
+                <div className="w-full h-full  flex items-center">Menu</div>
+              <ModeToggle variant = "ghost" />
               </SheetTitle>
               <SheetDescription>
                 <GreetUser></GreetUser>
@@ -110,10 +111,17 @@ export default function Navbar() {
                   Inference
                 </Link>
               </Button>
+              <Button variant = "ghost" className = "justify-start">
+                <Link href="/auth/login" className="text-sm ">
+                  Sign in 
+                </Link>
+              </Button>
+              <Button variant = "ghost" className = "justify-start">
+                <Link href="/auth/sign-up" className="text-sm ">
+                  Sign up
+                </Link>
+              </Button>
 
-              <AuthButton />
-
-              <ModeToggle />
 
             {/* </div> */}
           </SheetContent>

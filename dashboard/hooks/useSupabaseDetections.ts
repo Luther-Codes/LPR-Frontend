@@ -42,7 +42,7 @@ export function useSupabaseDetections() {
       plate_number: string;
       confidence: number;
       status: string;
-      time_ms: number;
+      time_taken: number;
     }) => {
       if (!user) return null;
 

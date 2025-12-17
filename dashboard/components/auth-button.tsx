@@ -19,11 +19,6 @@ export function AuthButton() {
   return user ? (
     <div className="flex items-center gap-4">
       Hey, {user.email}
-      {/* <Button
-        variant="outline"
-        onClick={() => supabase.auth.signOut()}
-      >
-      </Button> */}
       <LogoutButton></LogoutButton>
     </div>
   ) : (
