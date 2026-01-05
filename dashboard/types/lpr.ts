@@ -3,6 +3,8 @@ export interface BoundingBox {
     y_min: number;
     x_max: number;
     y_max: number;
+    confidence?: number;
+    cls?: number;
 }
 
 export interface PlateResult {
