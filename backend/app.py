@@ -13,9 +13,14 @@ from ultralytics import YOLO
 # ---------------------------
 # Load Models
 # ---------------------------
-plate_detector = YOLO("../models/LPR_MODEL.pt")     # YOLO model for plate detection
-char_detector = YOLO("../models/OCR_MODEL.pt")       # YOLO model for character detection
+plate_detector = YOLO("models/LPR_MODEL.pt")     # YOLO model for plate detection
+char_detector = YOLO("models/OCR_MODEL.pt")       # YOLO model for character detection
 
+# ---------------------------
+# Render Setup
+# ---------------------------
+plate_detector.to("cpu")
+char_detector.to("cpu")
 
 # ---------------------------
 # FastAPI
@@ -66,6 +71,14 @@ def sort_characters(char_boxes):
 # ---------------------------
 # MAIN ENDPOINT
 # ---------------------------
+@app.get("/")
+def health():
+    return {
+        "status": "ok",
+        "service": "LPR Backend",
+        "model_loaded": True
+    }
+
 @app.post("/recognize", response_model=MultiPlateResponse)
 async def recognize(file: UploadFile = File(...)):
     start_time = time.time()
@@ -102,7 +115,7 @@ async def recognize(file: UploadFile = File(...)):
         cropped_plate = img_cv2[y1:y2, x1:x2]
 
         # Optional Debug Save
-        cv2.imwrite(f"debug_plate_{idx+1}.jpg", cropped_plate)
+        # cv2.imwrite(f"debug_plate_{idx+1}.jpg", cropped_plate)
 
         # ---------------------------
         # Detect characters on plate

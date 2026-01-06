@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+torch==2.1.2
+ultralytics
+numpy<2.0
+opencv-python-headless
+python-multipart
+Pillow
