@@ -20,7 +20,7 @@ st.set_page_config(
     layout="centered"
 )
 
-st.title("License Plate Recognition (YOLOv8)")
+st.title("License Plate Recognition")
 st.caption("Plate detection + character recognition")
 
 # ---------------------------
