@@ -1,0 +1,2 @@
+libg11
+libglib2.0-0
