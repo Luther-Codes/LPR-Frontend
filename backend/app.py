@@ -13,8 +13,8 @@ from ultralytics import YOLO
 # ---------------------------
 # Load Models
 # ---------------------------
-plate_detector = YOLO("models/LPR_MODEL.pt")     # YOLO model for plate detection
-char_detector = YOLO("models/OCR_MODEL.pt")       # YOLO model for character detection
+plate_detector = YOLO("../models/LPR_MODEL.pt")     # YOLO model for plate detection
+char_detector = YOLO("../models/OCR_MODEL.pt")       # YOLO model for character detection
 
 # ---------------------------
 # Render Setup

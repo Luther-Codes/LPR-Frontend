@@ -1,8 +1,6 @@
-fastapi
-uvicorn[standard]
-torch==2.1.2
+streamlit
 ultralytics
-numpy<2.0
+torch
 opencv-python-headless
-python-multipart
+numpy<2.0
 Pillow
